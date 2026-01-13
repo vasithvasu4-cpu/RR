@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Vehicle Mgr | Cloud Professional</title>
+    <style>
+        :root {
+            --primary: #2563eb; --success: #10b981; --warning: #f59e0b;
+            --danger: #ef4444; --bg: #f8fafc; --card: #ffffff;
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); margin: 0; color: #1e293b; }
+        .app-container { display: grid; grid-template-columns: 320px 1fr; min-height: 100vh; }
+
+        /* Sidebar & Inputs */
+        .sidebar { background: var(--card); padding: 25px; border-right: 1px solid #e2e8f0; position: sticky; top: 0; height: 100vh; box-sizing: border-box; overflow-y: auto; }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--primary); margin-bottom: 2rem; display: block; }
+        .form-group { margin-bottom: 1.2rem; }
+        label { display: block; font-size: 0.8rem; font-weight: 700; margin-bottom: 5px; color: #64748b; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.95rem; box-sizing: border-box; }
+        
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; margin-top: 10px; color: white; }
+        .btn-add { background: var(--primary); }
+        .btn-sync { background: #6366f1; }
+        .btn-update { background: var(--success); display: none; }
+
+        /* Dashboard Stats */
+        .main-content { padding: 30px; }
+        .stats-strip { display: flex; gap: 20px; margin-bottom: 25px; }
+        .stat-box { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); flex: 1; border-top: 5px solid var(--primary); }
+        .stat-box h4 { margin: 0; font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
+        .stat-box p { margin: 10px 0 0; font-size: 2rem; font-weight: 800; }
+
+        /* Filter Bar */
+        .filter-bar { background: white; padding: 15px 25px; border-radius: 12px; margin-bottom: 30px; display: flex; gap: 15px; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .search-id { flex: 2; }
+        .clear-btn { font-size: 0.8rem; color: var(--primary); cursor: pointer; font-weight: 700; white-space: nowrap; }
+
+        /* Columns */
+        .records-wrapper { display: flex; gap: 25px; overflow-x: auto; padding-bottom: 20px; align-items: flex-start; }
+        .date-column { min-width: 320px; max-width: 320px; background: #f1f5f9; border-radius: 16px; padding: 20px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .column-header { font-size: 1.1rem; font-weight: 800; padding-bottom: 12px; margin-bottom: 15px; border-bottom: 3px solid #cbd5e1; }
+
+        /* Cards */
+        .v-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; border-left: 6px solid #ccc; position: relative; }
+        .v-card.pending { border-left-color: var(--warning); background: #fffbeb; }
+        .v-card.completed { border-left-color: var(--success); background: #f0fdf4; }
+        .status-pill { font-size: 0.65rem; font-weight: 800; padding: 4px 10px; border-radius: 20px; cursor: pointer; text-transform: uppercase; display: inline-block; margin-top: 10px; }
+        .pill-pending { background: #fef3c7; color: #92400e; }
+        .pill-completed { background: #d1fae5; color: #065f46; }
+        .card-actions { margin-top: 12px; display: flex; gap: 15px; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+        .act-link { font-size: 0.75rem; font-weight: 800; cursor: pointer; text-transform: uppercase; }
+        .edit-link { color: var(--primary); }
+        .del-link { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <aside class="sidebar">
+        <span class="logo">Vehicle Mgr</span>
+        <input type="hidden" id="edit-id">
+        <div class="form-group">
+            <label>Vehicle Name</label>
+            <input type="text" id="vName" placeholder="e.g. 3 Ton Pickup">
+        </div>
+        <div class="form-group">
+            <label>Vehicle ID</label>
+            <input type="text" id="vID" placeholder="17834">
+        </div>
+        <div class="form-group">
+            <label>Service Date</label>
+            <input type="date" id="vDate">
+        </div>
+        <div class="form-group">
+            <label>Status</label>
+            <select id="vStatus">
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+            </select>
+        </div>
+        <button id="add-btn" class="btn btn-add" onclick="saveRecord()">Add & Cloud Sync</button>
+        <button id="upd-btn" class="btn btn-update" onclick="applyUpdate()">Update Changes</button>
+        <button class="btn btn-sync" onclick="loadFromCloud()">🔄 Refresh from Cloud</button>
+        <p id="sync-status" style="font-size:11px; text-align:center; color:var(--success); margin-top:10px; display:none;">Syncing...</p>
+    </aside>
+
+    <main class="main-content">
+        <div class="stats-strip">
+            <div class="stat-box"><h4>Total</h4><p id="total-val">0</p></div>
+            <div class="stat-box" style="border-color: var(--warning)"><h4>Pending</h4><p id="pending-val">0</p></div>
+            <div class="stat-box" style="border-color: var(--success)"><h4>Completed</h4><p id="completed-val">0</p></div>
+        </div>
+
+        <div class="filter-bar">
+            <input type="text" id="findID" class="search-id" placeholder="Find Vehicle ID..." onkeyup="refreshUI()">
+            <input type="date" id="findDate" class="date-pick" onchange="refreshUI()">
+            <span class="clear-btn" onclick="clearFilters()">Clear Filters</span>
+            <button class="btn" style="width:auto; margin:0; background:var(--primary)" onclick="exportCSV()">Export CSV</button>
+        </div>
+
+        <h3>Service Board (Date Wise)</h3>
+        <div id="dashboard" class="records-wrapper"></div>
+    </main>
+</div>
+
+<script>
+    // --- INSERT YOUR JSONBIN DETAILS HERE ---
+    const BIN_ID = "69661f4e43b1c97be92d62f6"; 
+    const MASTER_KEY = "$2a$10$3DRRK3BOG6YrdgtK04FzReB7S0e5Hww/VMrBHTKO0OtatSM1zr/0C";
+    const CLOUD_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+    let appData = [];
+
+    // LOAD DATA FROM CLOUD ON START
+    async function loadFromCloud() {
+        document.getElementById('sync-status').style.display = 'block';
+        try {
+            const res = await fetch(`${CLOUD_URL}/latest`, {
+                headers: { "X-Master-Key": MASTER_KEY }
+            });
+            const data = await res.json();
+            // JSONbin returns { record: [...] }
+            appData = data.record.vehicles || data.record || []; 
+            refreshUI();
+        } catch (e) {
+            console.error("Cloud Load Error", e);
+            appData = JSON.parse(localStorage.getItem('AI_VEHICLE_STORAGE_V3')) || [];
+            refreshUI();
+        }
+        document.getElementById('sync-status').style.display = 'none';
+    }
+
+    // SAVE DATA TO CLOUD
+    async function syncToCloud() {
+        document.getElementById('sync-status').style.display = 'block';
+        localStorage.setItem('AI_VEHICLE_STORAGE_V3', JSON.stringify(appData));
+        try {
+            await fetch(CLOUD_URL, {
+                method: 'PUT',
+                headers: { 
+                    "Content-Type": "application/json",
+                    "X-Master-Key": MASTER_KEY 
+                },
+                body: JSON.stringify({ vehicles: appData })
+            });
+        } catch (e) {
+            alert("Cloud Sync Failed. Saved locally only.");
+        }
+        document.getElementById('sync-status').style.display = 'none';
+        refreshUI();
+    }
+
+    function formatDate(iso) {
+        if(!iso) return "No Date";
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+    }
+
+    function saveRecord() {
+        const name = document.getElementById('vName').value.trim();
+        const vid = document.getElementById('vID').value.trim();
+        const date = document.getElementById('vDate').value;
+        const status = document.getElementById('vStatus').value;
+
+        if(!name || !vid || !date) return alert("Missing Data");
+
+        appData.push({ id: Date.now(), name, vid, date, status });
+        syncToCloud();
+        reset();
+    }
+
+    function editRecord(id) {
+        const item = appData.find(x => x.id === id);
+        document.getElementById('edit-id').value = item.id;
+        document.getElementById('vName').value = item.name;
+        document.getElementById('vID').value = item.vid;
+        document.getElementById('vDate').value = item.date;
+        document.getElementById('vStatus').value = item.status;
+        document.getElementById('add-btn').style.display = 'none';
+        document.getElementById('upd-btn').style.display = 'block';
+    }
+
+    function applyUpdate() {
+        const id = parseInt(document.getElementById('edit-id').value);
+        appData = appData.map(x => x.id === id ? {
+            ...x,
+            name: document.getElementById('vName').value,
+            vid: document.getElementById('vID').value,
+            date: document.getElementById('vDate').value,
+            status: document.getElementById('vStatus').value
+        } : x);
+
+        syncToCloud();
+        document.getElementById('add-btn').style.display = 'block';
+        document.getElementById('upd-btn').style.display = 'none';
+        reset();
+    }
+
+    function deleteRecord(id) {
+        if(confirm("Confirm Delete?")) {
+            appData = appData.filter(x => x.id !== id);
+            syncToCloud();
+        }
+    }
+
+    function toggleStatus(id) {
+        appData = appData.map(x => x.id === id ? {...x, status: x.status === 'pending' ? 'completed' : 'pending'} : x);
+        syncToCloud();
+    }
+
+    function refreshUI() {
+        const dash = document.getElementById('dashboard');
+        const sID = document.getElementById('findID').value.toLowerCase();
+        const sDate = document.getElementById('findDate').value;
+        dash.innerHTML = '';
+
+        const filtered = appData.filter(x => 
+            x.vid.toLowerCase().includes(sID) && (sDate ? x.date === sDate : true)
+        );
+
+        document.getElementById('total-val').innerText = filtered.length;
+        document.getElementById('pending-val').innerText = filtered.filter(x => x.status === 'pending').length;
+        document.getElementById('completed-val').innerText = filtered.filter(x => x.status === 'completed').length;
+
+        const groups = filtered.reduce((acc, x) => {
+            if(!acc[x.date]) acc[x.date] = [];
+            acc[x.date].push(x);
+            return acc;
+        }, {});
+
+        Object.keys(groups).sort().reverse().forEach(date => {
+            const col = document.createElement('div');
+            col.className = 'date-column';
+            let cards = groups[date].map(x => `
+                <div class="v-card ${x.status}">
+                    <h5>${x.name}</h5>
+                    <small>ID: ${x.vid}</small><br>
+                    <span class="status-pill pill-${x.status}" onclick="toggleStatus(${x.id})">${x.status}</span>
+                    <div class="card-actions">
+                        <span class="act-link edit-link" onclick="editRecord(${x.id})">Edit</span>
+                        <span class="act-link del-link" onclick="deleteRecord(${x.id})">Delete</span>
+                    </div>
+                </div>
+            `).join('');
+            col.innerHTML = `<div class="column-header">${formatDate(date)}</div>${cards}`;
+            dash.appendChild(col);
+        });
+    }
+
+    function reset() {
+        document.getElementById('vName').value = '';
+        document.getElementById('vID').value = '';
+        document.getElementById('vDate').value = '';
+    }
+
+    function clearFilters() {
+        document.getElementById('findID').value = '';
+        document.getElementById('findDate').value = '';
+        refreshUI();
+    }
+
+    function exportCSV() {
+        let csv = "Date,Name,ID,Status\n" + appData.map(x => `${x.date},${x.name},${x.vid},${x.status}`).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Full_Vehicle_Record.csv`;
+        a.click();
+    }
+
+    // Start by loading data
+    loadFromCloud();
+</script>
+</body>
+</html>
